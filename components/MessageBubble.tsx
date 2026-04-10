@@ -26,11 +26,130 @@ function CopyButton({ code }: { code: string }) {
   );
 }
 
-interface MessageBubbleProps {
-  message: Message;
+function FeedbackButtons({
+  onFeedback,
+}: {
+  onFeedback: (rating: "up" | "down", comment?: string) => void;
+}) {
+  const [submitted, setSubmitted] = useState<"up" | "down" | null>(null);
+  const [showComment, setShowComment] = useState(false);
+  const [comment, setComment] = useState("");
+
+  const handleRating = useCallback(
+    (rating: "up" | "down") => {
+      if (submitted) return;
+      if (rating === "down") {
+        setShowComment(true);
+        setSubmitted(rating);
+        onFeedback(rating);
+      } else {
+        setSubmitted(rating);
+        onFeedback(rating);
+      }
+    },
+    [submitted, onFeedback]
+  );
+
+  const handleCommentSubmit = useCallback(() => {
+    if (comment.trim()) {
+      onFeedback("down", comment.trim());
+      setShowComment(false);
+    }
+  }, [comment, onFeedback]);
+
+  return (
+    <div className="mt-2">
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => handleRating("up")}
+          disabled={!!submitted}
+          className={`rounded p-1 text-xs transition-colors ${
+            submitted === "up"
+              ? "text-green-400"
+              : submitted
+                ? "text-white/10"
+                : "text-white/20 hover:text-white/50"
+          }`}
+          title="Helpful"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+          </svg>
+        </button>
+        <button
+          onClick={() => handleRating("down")}
+          disabled={!!submitted}
+          className={`rounded p-1 text-xs transition-colors ${
+            submitted === "down"
+              ? "text-red-400"
+              : submitted
+                ? "text-white/10"
+                : "text-white/20 hover:text-white/50"
+          }`}
+          title="Not helpful"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" />
+          </svg>
+        </button>
+        {submitted && (
+          <span className="ml-1 text-[10px] text-white/30">
+            {submitted === "up" ? "Thanks!" : ""}
+          </span>
+        )}
+      </div>
+      {showComment && (
+        <div className="mt-2 flex gap-2">
+          <input
+            type="text"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCommentSubmit()}
+            placeholder="What were you hoping for?"
+            className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white placeholder-white/30 outline-none focus:border-white/20"
+            autoFocus
+          />
+          <button
+            onClick={handleCommentSubmit}
+            className="rounded-md bg-white/10 px-3 py-1.5 text-xs text-white/60 hover:bg-white/15"
+          >
+            Send
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
-export default function MessageBubble({ message }: MessageBubbleProps) {
+interface MessageBubbleProps {
+  message: Message;
+  isStreaming?: boolean;
+  onFeedback?: (rating: "up" | "down", comment?: string) => void;
+}
+
+export default function MessageBubble({
+  message,
+  isStreaming,
+  onFeedback,
+}: MessageBubbleProps) {
   const isUser = message.role === "user";
 
   if (isUser) {
@@ -194,6 +313,9 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
         >
           {message.content}
         </ReactMarkdown>
+        {!isUser && !isStreaming && message.content && onFeedback && (
+          <FeedbackButtons onFeedback={onFeedback} />
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import type { Message, Tier } from "@/lib/types";
 import MessageBubble from "./MessageBubble";
 import TierSelector from "./TierSelector";
@@ -12,6 +12,7 @@ export default function ChatInterface() {
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const sessionId = useMemo(() => crypto.randomUUID(), []);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -28,6 +29,33 @@ export default function ChatInterface() {
         Math.min(textareaRef.current.scrollHeight, 200) + "px";
     }
   }, [input]);
+
+  const handleFeedback = useCallback(
+    (messageId: string, rating: "up" | "down", comment?: string) => {
+      const msgIndex = messages.findIndex((m) => m.id === messageId);
+      const assistantMsg = messages[msgIndex];
+      // Find the preceding user message
+      const userMsg = messages
+        .slice(0, msgIndex)
+        .reverse()
+        .find((m) => m.role === "user");
+
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          messageId,
+          rating,
+          comment,
+          userMessage: userMsg?.content || "",
+          assistantMessage: assistantMsg?.content || "",
+          tier,
+        }),
+      }).catch(console.error);
+    },
+    [messages, sessionId, tier]
+  );
 
   const sendMessage = useCallback(async () => {
     const trimmed = input.trim();
@@ -60,6 +88,7 @@ export default function ChatInterface() {
             content: m.content,
           })),
           tier,
+          sessionId,
         }),
       });
 
@@ -130,7 +159,7 @@ export default function ChatInterface() {
     } finally {
       setIsStreaming(false);
     }
-  }, [input, isStreaming, messages, tier]);
+  }, [input, isStreaming, messages, tier, sessionId]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -189,8 +218,20 @@ export default function ChatInterface() {
             </div>
           ) : (
             <div className="space-y-5">
-              {messages.map((message) => (
-                <MessageBubble key={message.id} message={message} />
+              {messages.map((message, idx) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  isStreaming={
+                    isStreaming && idx === messages.length - 1
+                  }
+                  onFeedback={
+                    message.role === "assistant"
+                      ? (rating, comment) =>
+                          handleFeedback(message.id, rating, comment)
+                      : undefined
+                  }
+                />
               ))}
               {isStreaming &&
                 messages[messages.length - 1]?.content === "" && (
